@@ -1,0 +1,29 @@
+# Unity generated
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+MemoryCaptures/
+
+# Unity3D generated meta files
+*.pidb.meta
+*.pdb.meta
+
+# Visual Studio / Rider
+.vs/
+.vscode/
+*.csproj
+*.sln
+
+# Plastic SCM
+.plastic/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+ignore.conf
