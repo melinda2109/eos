@@ -147,7 +147,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      night_eos_damage_0: 4471256802445696746
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

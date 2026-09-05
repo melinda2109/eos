@@ -147,7 +147,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      night_eos_idle_0: 3308911060124907351
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

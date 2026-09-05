@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 0038e91bcd720484eb9e521639e0329b
+guid: 50a2b7975a88adce78f897c9feb12981
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 3821618811604556525
-    second: eos_idle_0
+      213: -2094234461830101724
+    second: eos_heal_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,7 +113,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: eos_idle_0
+      name: eos_heal_0
       rect:
         serializedVersion: 2
         x: 0
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: dead3a4bf0e190530800000000000000
-      internalID: 3821618811604556525
+      spriteID: 4254c3a4ad8cfe2e0800000000000000
+      internalID: -2094234461830101724
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      eos_idle_0: 3821618811604556525
+      eos_heal_0: -2094234461830101724
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
