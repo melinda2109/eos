@@ -43,21 +43,16 @@ public class GameManager : MonoBehaviour
     
     void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-        }
-        else
+        if (Instance != null)
         {
             Destroy(gameObject);
+            return;
         }
-    }
-    
-    void Start()
-    {
+
+        Instance = this;
         InitializeGame();
     }
-    
+
     void InitializeGame()
     {
         // Initialize players with random stats
@@ -72,6 +67,10 @@ public class GameManager : MonoBehaviour
         // Assign random abilities
         eosAbility = (SpecialAbility)Random.Range(0, 3);
         nightEosAbility = (SpecialAbility)Random.Range(0, 3);
+
+        // TEMP TESTING: force Low Health Heal on both so you can see it trigger. Remove later.
+        eosAbility = SpecialAbility.LowHealthHeal;
+        nightEosAbility = SpecialAbility.LowHealthHeal;
         
         // Randomly select starting player
         eosIsActivePlayer = (Random.value > 0.5f);
@@ -79,6 +78,7 @@ public class GameManager : MonoBehaviour
         // Update UI
         UpdateUI();
         UpdateBackground();
+        uiManager.UpdateHealthBars();
         nextRoundButton.onClick.AddListener(NextRound);
         
         // Display initial game state
@@ -90,10 +90,38 @@ public class GameManager : MonoBehaviour
                    $"Round {currentRound} begins!\n" +
                    $"{(eosIsActivePlayer ? "Eos" : "Night Eos")} goes first.";
         
-        battleLogText.text = battleLog;
+        UpdateBattleLogDisplay();
         gameStatusText.text = eosIsActivePlayer ? "Eos's Turn" : "Night Eos's Turn";
     }
-    
+
+    void UpdateBattleLogDisplay()
+    {
+        battleLogText.text = battleLog;
+
+        // Content (and the text box itself) have no auto-layout, so grow them to fit
+        // the text or the log gets clipped/pushed out of view and can't be scrolled
+        Canvas.ForceUpdateCanvases();
+        battleLogText.ForceMeshUpdate();
+        float newHeight = Mathf.Max(300f, battleLogText.preferredHeight);
+
+        RectTransform textRect = battleLogText.rectTransform;
+        textRect.sizeDelta = new Vector2(textRect.sizeDelta.x, newHeight);
+
+        RectTransform contentRect = battleLogText.transform.parent as RectTransform;
+        if (contentRect != null)
+        {
+            contentRect.sizeDelta = new Vector2(contentRect.sizeDelta.x, newHeight);
+        }
+
+        // Snap to the newest entry
+        ScrollRect scrollRect = battleLogText.GetComponentInParent<ScrollRect>();
+        if (scrollRect != null)
+        {
+            Canvas.ForceUpdateCanvases();
+            scrollRect.verticalNormalizedPosition = 0f;
+        }
+    }
+
     string GetAbilityName(SpecialAbility ability)
     {
         switch (ability)
@@ -126,11 +154,14 @@ public class GameManager : MonoBehaviour
             {
                 damage = Mathf.RoundToInt(damage * 1.5f);
                 abilityActivated = true;
-                
+
                 if (attacker == eosPlayer)
                     eosAbilityActivated = true;
                 else
                     nightEosAbilityActivated = true;
+
+                uiManager.ShowAbilityActivation(attacker == eosPlayer);
+                particleEffects.PlayAbilityEffect(attacker.transform.position, attacker == eosPlayer);
             }
         }
         
@@ -145,17 +176,23 @@ public class GameManager : MonoBehaviour
                 damage = Mathf.RoundToInt(damage * 0.5f);
                 damageReduced = true;
                 abilityActivated = true;
-                
+
                 if (target == eosPlayer)
                     eosAbilityActivated = true;
                 else
                     nightEosAbilityActivated = true;
+
+                uiManager.ShowAbilityActivation(target == eosPlayer);
+                particleEffects.PlayAbilityEffect(target.transform.position, target == eosPlayer);
             }
         }
-        
+
         // Apply defense
         int finalDamage = Mathf.Max(0, damage - target.defensePower);
-        
+
+        // Track health before damage to detect threshold crossing (matches C++ design)
+        int targetHealthBefore = target.currentHealth;
+
         // Apply damage
         target.TakeDamage(finalDamage);
         
@@ -185,8 +222,8 @@ public class GameManager : MonoBehaviour
         battleLog += $"\n{targetName} takes {finalDamage} damage (Attack: {damage} - Defense: {target.defensePower})";
         battleLog += $"\n{targetName} has {target.currentHealth} health remaining";
         
-        battleLogText.text = battleLog;
-        
+        UpdateBattleLogDisplay();
+
         // Update health bars
         uiManager.UpdateHealthBars();
         
@@ -194,22 +231,23 @@ public class GameManager : MonoBehaviour
         if ((target == eosPlayer && eosAbility == SpecialAbility.LowHealthHeal) ||
             (target == nightEosPlayer && nightEosAbility == SpecialAbility.LowHealthHeal))
         {
-            if (target.currentHealth < 30 && Random.value < 0.25f)
+            if (targetHealthBefore >= 30 && target.currentHealth < 30 && Random.value < 1.0f) // TEMP TESTING: was 0.25f
             {
                 target.Heal(5);
                 battleLog += $"\n{targetName} activates <color=#00FF00>Low Health Heal</color> ability!";
                 battleLog += $"\n{targetName} heals 5 health points!";
                 battleLog += $"\n{targetName} now has {target.currentHealth} health";
-                battleLogText.text = battleLog;
-                
+                UpdateBattleLogDisplay();
+
                 audioManager.PlayHealSound();
                 particleEffects.PlayHealEffect(target.transform.position);
-                
+
                 if (target == eosPlayer)
                     eosAbilityActivated = true;
                 else
                     nightEosAbilityActivated = true;
-                
+
+                uiManager.ShowAbilityActivation(target == eosPlayer);
                 uiManager.UpdateHealthBars();
             }
         }
@@ -276,14 +314,7 @@ public class GameManager : MonoBehaviour
         
         // Add round separator to battle log
         battleLog += $"\n\n<color=#FFFFFF>========== Round {currentRound} ==========</color>";
-        battleLogText.text = battleLog;
-        
-        // Scroll battle log to bottom
-        Canvas.ForceUpdateCanvases();
-        if (battleLogText.transform.parent.GetComponent<ScrollRect>() != null)
-        {
-            battleLogText.transform.parent.GetComponent<ScrollRect>().verticalNormalizedPosition = 0;
-        }
+        UpdateBattleLogDisplay();
     }
     
     void UpdateUI()
@@ -298,7 +329,7 @@ public class GameManager : MonoBehaviour
         gameStatusText.text = $"{winnerName} Wins!";
         
         battleLog += $"\n\n<color=#00FF00>{winnerName} has won the battle!</color>";
-        battleLogText.text = battleLog;
+        UpdateBattleLogDisplay();
         
         nextRoundButton.GetComponentInChildren<TextMeshProUGUI>().text = "Restart";
         audioManager.PlayVictorySound();
@@ -333,7 +364,7 @@ public class GameManager : MonoBehaviour
                    $"Round {currentRound} begins!\n" +
                    $"{(eosIsActivePlayer ? "Eos" : "Night Eos")} goes first.";
         
-        battleLogText.text = battleLog;
+        UpdateBattleLogDisplay();
         gameStatusText.text = eosIsActivePlayer ? "Eos's Turn" : "Night Eos's Turn";
         nextRoundButton.GetComponentInChildren<TextMeshProUGUI>().text = "Next Round";
         

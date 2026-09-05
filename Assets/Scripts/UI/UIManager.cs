@@ -118,15 +118,17 @@ public class UIManager : MonoBehaviour
     {
         // Update Eos health bar
         float eosHealthPercent = (float)eosPlayer.currentHealth / eosPlayer.maxHealth;
-        eosHealthText.text = $"{eosPlayer.currentHealth}/{eosPlayer.maxHealth}";
+        if (eosHealthText != null)
+            eosHealthText.text = $"{eosPlayer.currentHealth}/{eosPlayer.maxHealth}";
 
         // Update Night Eos health bar
         float nightEosHealthPercent = (float)nightEosPlayer.currentHealth / nightEosPlayer.maxHealth;
-        nightEosHealthText.text = $"{nightEosPlayer.currentHealth}/{nightEosPlayer.maxHealth}";
+        if (nightEosHealthText != null)
+            nightEosHealthText.text = $"{nightEosPlayer.currentHealth}/{nightEosPlayer.maxHealth}";
 
-        // Animate health bars
-        StartCoroutine(AnimateHealthBar(eosHealthBar, eosHealthPercent));
-        StartCoroutine(AnimateHealthBar(nightEosHealthBar, nightEosHealthPercent));
+        // Animate health bars (Slider range is 0-maxHealth, not 0-1)
+        StartCoroutine(AnimateHealthBar(eosHealthBar, eosPlayer.currentHealth));
+        StartCoroutine(AnimateHealthBar(nightEosHealthBar, nightEosPlayer.currentHealth));
 
         // Change health bar color based on health percentage
         UpdateHealthBarColor(eosHealthFill, eosHealthPercent, ref eosPulseCoroutine);
