@@ -1,5 +1,5 @@
-using UnityEngine;
 using System.Collections;
+using UnityEngine;
 
 public class Player : MonoBehaviour
 {
@@ -9,12 +9,12 @@ public class Player : MonoBehaviour
     public int currentHealth;
     public int attackPower;
     public int defensePower;
-    
+
     [Header("Abilities")]
     public int lightAttackDamage = 15;
     public int heavyAttackDamage = 25;
     public int healAmount = 20;
-    
+
     [Header("Visual")]
     public Animator playerAnimator;
     public SpriteRenderer spriteRenderer;
@@ -27,7 +27,7 @@ public class Player : MonoBehaviour
     private Coroutine flashCoroutine;
     private Color baseSpriteColor = Color.white;
 
-    void Awake()
+    private void Awake()
     {
         if (spriteRenderer != null)
             baseSpriteColor = spriteRenderer.color;
@@ -41,92 +41,102 @@ public class Player : MonoBehaviour
         attackPower = attack;
         defensePower = defense;
     }
-    
+
+    public void PlayAttack()
+    {
+        TriggerAnimation("Attack", "eos_attack");
+        SwapSprite(attackSprite);
+    }
+
+    public void PlayHeal()
+    {
+        TriggerAnimation("Heal", "eos_heal");
+        SwapSprite(healSprite);
+        Flash(Color.green);
+    }
+
+    public void PlayDefend()
+    {
+        TriggerAnimation("Defend", "eos_defend");
+        Flash(new Color(0.25f, 0.8f, 1f));
+    }
+
     public void TakeDamage(int damage)
     {
-        currentHealth = Mathf.Max(0, currentHealth - damage);
-        
-        // Trigger damage animation
-        if (playerAnimator != null)
-            playerAnimator.SetTrigger("TakeDamage");
-        
-        // Flash red effect
-        if (flashCoroutine != null) StopCoroutine(flashCoroutine);
-        flashCoroutine = StartCoroutine(FlashEffect(Color.red));
+        TriggerAnimation("TakeDamage", "eos_damage");
         SwapSprite(damageSprite);
+        Flash(Color.red);
+        currentHealth = Mathf.Max(0, currentHealth - Mathf.Max(0, damage));
     }
-    
+
     public void Heal(int amount)
     {
-        currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
-        
-        // Trigger heal animation
-        if (playerAnimator != null)
-            playerAnimator.SetTrigger("Heal");
-        
-        // Flash green effect
-        if (flashCoroutine != null) StopCoroutine(flashCoroutine);
-        flashCoroutine = StartCoroutine(FlashEffect(Color.green));
-        SwapSprite(healSprite);
+        currentHealth = Mathf.Min(maxHealth, currentHealth + Mathf.Max(0, amount));
+        PlayHeal();
     }
 
-    public void ResetHealth()
+    public void HealSilent(int amount)
     {
-        currentHealth = maxHealth;
-        if (spriteRenderer != null && idleSprite != null)
-            spriteRenderer.sprite = idleSprite;
+        currentHealth = Mathf.Min(maxHealth, currentHealth + Mathf.Max(0, amount));
     }
-    
+
     public void Attack()
     {
-        if (!GameManager.Instance.IsActivePlayer(this)) return;
-        
-        Player target = GetOpponent();
-        
-        if (playerAnimator != null)
-            playerAnimator.SetTrigger("Attack");
-
-        SwapSprite(attackSprite);
-
-        GameManager.Instance.PlayerAttack(this, target);
+        if (GameManager.Instance != null && GameManager.Instance.Battle != null)
+            GameManager.Instance.Battle.OnAttackButton();
     }
 
-    void SwapSprite(Sprite tempSprite)
+    private void TriggerAnimation(string primary, string fallback)
+    {
+        if (playerAnimator == null) return;
+        foreach (var parameter in playerAnimator.parameters)
+        {
+            if (parameter.type == AnimatorControllerParameterType.Trigger && parameter.name == primary)
+            {
+                playerAnimator.SetTrigger(primary);
+                return;
+            }
+        }
+        foreach (var parameter in playerAnimator.parameters)
+        {
+            if (parameter.type == AnimatorControllerParameterType.Trigger && parameter.name == fallback)
+            {
+                playerAnimator.SetTrigger(fallback);
+                return;
+            }
+        }
+    }
+
+    private void SwapSprite(Sprite tempSprite)
     {
         if (spriteRenderer == null || tempSprite == null || idleSprite == null) return;
-        if (spriteCoroutine != null)
-            StopCoroutine(spriteCoroutine);
+        if (spriteCoroutine != null) StopCoroutine(spriteCoroutine);
         spriteCoroutine = StartCoroutine(ShowSpriteTemporarily(tempSprite));
     }
 
-    IEnumerator ShowSpriteTemporarily(Sprite tempSprite)
+    private IEnumerator ShowSpriteTemporarily(Sprite tempSprite)
     {
         spriteRenderer.sprite = tempSprite;
-        yield return new WaitForSeconds(0.5f);
-        spriteRenderer.sprite = idleSprite;
+        yield return new WaitForSeconds(0.45f);
+        if (spriteRenderer != null && idleSprite != null)
+            spriteRenderer.sprite = idleSprite;
     }
 
-    Player GetOpponent()
+    private void Flash(Color flashColor)
     {
-        return this == GameManager.Instance.eosPlayer ? 
-               GameManager.Instance.nightEosPlayer : 
-               GameManager.Instance.eosPlayer;
+        if (spriteRenderer == null) return;
+        if (flashCoroutine != null) StopCoroutine(flashCoroutine);
+        flashCoroutine = StartCoroutine(FlashEffect(flashColor));
     }
-    
-    IEnumerator FlashEffect(Color flashColor)
-    {
-        if (spriteRenderer == null) yield break;
 
-        // Blend only partially so the sprite's own colors/details stay visible
-        // (a full color replacement wipes out warm sprites to solid red / dark sprites to near-black).
-        // Always tint from/restore to baseSpriteColor (not spriteRenderer.color) so an overlapping
-        // damage+heal flash can't leave the sprite stuck on a half-applied tint.
-        Color tintedColor = Color.Lerp(baseSpriteColor, flashColor, 0.35f);
-        spriteRenderer.color = tintedColor;
+    private IEnumerator FlashEffect(Color flashColor)
+    {
+        Color tinted = Color.Lerp(baseSpriteColor, flashColor, 0.35f);
+        spriteRenderer.color = tinted;
         yield return new WaitForSeconds(0.1f);
         spriteRenderer.color = baseSpriteColor;
-        yield return new WaitForSeconds(0.1f);
-        spriteRenderer.color = tintedColor;
+        yield return new WaitForSeconds(0.08f);
+        spriteRenderer.color = tinted;
         yield return new WaitForSeconds(0.1f);
         spriteRenderer.color = baseSpriteColor;
     }

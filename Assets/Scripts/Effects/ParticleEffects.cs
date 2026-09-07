@@ -28,20 +28,20 @@ public class ParticleEffects : MonoBehaviour
         }
     }
     
-    public void PlayAttackEffect(Vector3 position)
+    public void PlayAttackEffect(Vector3 position, bool isEos = true)
     {
         if (attackEffectPrefab != null)
         {
             GameObject effect = Instantiate(attackEffectPrefab, position, Quaternion.identity);
-            
-            // Set color based on active player
+
+            // Set color based on attacker
             ParticleSystem ps = effect.GetComponent<ParticleSystem>();
             if (ps != null)
             {
                 var main = ps.main;
-                main.startColor = GameManager.Instance.eosIsActivePlayer ? eosColor : nightEosColor;
+                main.startColor = isEos ? eosColor : nightEosColor;
             }
-            
+
             Destroy(effect, 2f);
         }
     }
