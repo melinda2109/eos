@@ -44,9 +44,12 @@ public class BattleSystem : MonoBehaviour
         State = BattleState.PlayerTurn;
         game?.SetNightText(nightNumber);
         ui?.BindBattle(this);
+        ui?.ClearLog();
         ui?.RefreshAll(player, enemy, CurrentMana, MaxMana);
         ui?.SetBattleStatus("YOUR TURN", "Choose an action");
         ui?.AppendLog("The arena falls silent. Eos moves first.");
+        if (SaveSystem.BestNight > 0)
+            ui?.AppendLog($"<color=#ffe58a>Record to beat: Night {SaveSystem.BestNight}.</color>");
     }
 
     public bool CanPlayerAct => initialized && State == BattleState.PlayerTurn && actionRoutine == null;
@@ -122,6 +125,7 @@ public class BattleSystem : MonoBehaviour
         playerDefending = true;
         player.defensePower = playerBaseDefense + 8;
         player.PlayDefend();
+        audio?.PlayDefendSound();
         ui?.SetBattleStatus("EOS DEFENDS", "+8 Defense until your next turn");
         ui?.AppendLog("Eos braces for impact. Defense rises by <color=#69c8ff>8</color>.");
         if (defendManaRestore > 0)
@@ -199,8 +203,12 @@ public class BattleSystem : MonoBehaviour
         if (player.currentHealth <= 0)
         {
             State = BattleState.Lost;
-            ui?.SetBattleStatus("DEFEAT", $"Eos fell on Night {nightNumber}");
+            bool newRecord = SaveSystem.RecordRun(nightNumber);
+            ui?.SetBattleStatus("DEFEAT", $"Eos fell on Night {nightNumber}  ·  Best: Night {SaveSystem.BestNight}");
             ui?.AppendLog($"<color=#ff8d8d>Night Eos wins the battle. Eos fell on Night {nightNumber}.</color>");
+            ui?.AppendLog(newRecord
+                ? $"<color=#ffe58a>New record! Deepest night reached: {SaveSystem.BestNight}.</color>"
+                : $"Best run so far: Night {SaveSystem.BestNight} (runs played: {SaveSystem.RunsPlayed}).");
             ui?.SetActionButtonsInteractable(false);
             audio?.PlayVictorySound();
             fx?.PlayVictoryEffect(enemy.transform.position);
@@ -292,5 +300,7 @@ public class BattleSystem : MonoBehaviour
         ui?.SetActionButtonsInteractable(true);
         ui?.SetBattleStatus("YOUR TURN", "Choose an action");
         ui?.AppendLog("A new run begins. Eos moves first.");
+        if (SaveSystem.BestNight > 0)
+            ui?.AppendLog($"<color=#ffe58a>Record to beat: Night {SaveSystem.BestNight}.</color>");
     }
 }

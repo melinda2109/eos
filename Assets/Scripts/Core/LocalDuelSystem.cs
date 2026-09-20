@@ -2,6 +2,8 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+public enum DuelAction { None, Attack, Heal, Defend }
+
 public class LocalDuelSystem : MonoBehaviour
 {
     private const int StartMana = 60;
@@ -53,37 +55,104 @@ public class LocalDuelSystem : MonoBehaviour
         ui?.RefreshDuel(p1, p2, p1Mana, p2Mana, MaxManaValue);
         AnnounceTurn();
         ui?.AppendLog("A friendly duel begins. Eos moves first.");
+        LogControlScheme();
+    }
+
+    private void LogControlScheme()
+    {
+        int pads = Gamepad.all.Count;
+        if (pads >= 2)
+        {
+            ui?.AppendLog("Both seats are on gamepads.");
+            return;
+        }
+        if (pads == 1)
+            ui?.AppendLog("Only one gamepad found — Player 2 plays on the keyboard: <color=#69c8ff>J / K / L</color>.");
+        else
+            ui?.AppendLog("No gamepad found — Player 1: <color=#69c8ff>A / S / D</color>, Player 2: <color=#69c8ff>J / K / L</color>.");
     }
 
     private void AnnounceTurn()
     {
+        string hint = ControlHint(isP1Turn);
         if (isP1Turn)
-            ui?.SetBattleStatus("PLAYER 1's TURN", "Eos — (A) Attack  (X) Heal  (B) Defend");
+            ui?.SetBattleStatus("PLAYER 1's TURN", $"Eos — {hint}");
         else
-            ui?.SetBattleStatus("PLAYER 2's TURN", "Night Eos — (A) Attack  (X) Heal  (B) Defend");
+            ui?.SetBattleStatus("PLAYER 2's TURN", $"Night Eos — {hint}");
+    }
+
+    /// <summary>Which device this seat is actually driving, so the prompt matches reality.</summary>
+    private static bool HasPadFor(bool playerOne) => Gamepad.all.Count > (playerOne ? 0 : 1);
+
+    private static string ControlHint(bool playerOne)
+    {
+        if (HasPadFor(playerOne)) return "(A) Attack  (X) Heal  (B) Defend";
+        return playerOne ? "(A) Attack  (S) Heal  (D) Defend" : "(J) Attack  (K) Heal  (L) Defend";
+    }
+
+    /// <summary>
+    /// Reads the active seat's input. Uses that seat's gamepad when one is plugged in and
+    /// otherwise falls back to a keyboard half, so a duel is playable with one pad or none.
+    /// </summary>
+    private static DuelAction ReadAction(bool playerOne)
+    {
+        int padIndex = playerOne ? 0 : 1;
+        if (Gamepad.all.Count > padIndex)
+        {
+            Gamepad pad = Gamepad.all[padIndex];
+            if (pad.buttonSouth.wasPressedThisFrame) return DuelAction.Attack;
+            if (pad.buttonWest.wasPressedThisFrame) return DuelAction.Heal;
+            if (pad.buttonEast.wasPressedThisFrame) return DuelAction.Defend;
+            return DuelAction.None;
+        }
+
+        Keyboard kb = Keyboard.current;
+        if (kb == null) return DuelAction.None;
+        if (playerOne)
+        {
+            if (kb.aKey.wasPressedThisFrame) return DuelAction.Attack;
+            if (kb.sKey.wasPressedThisFrame) return DuelAction.Heal;
+            if (kb.dKey.wasPressedThisFrame) return DuelAction.Defend;
+        }
+        else
+        {
+            if (kb.jKey.wasPressedThisFrame) return DuelAction.Attack;
+            if (kb.kKey.wasPressedThisFrame) return DuelAction.Heal;
+            if (kb.lKey.wasPressedThisFrame) return DuelAction.Defend;
+        }
+        return DuelAction.None;
     }
 
     private void Update()
     {
         if (matchOver || busy) return;
-        int padIndex = isP1Turn ? 0 : 1;
-        if (Gamepad.all.Count <= padIndex) return;
-        Gamepad pad = Gamepad.all[padIndex];
+
+        DuelAction action = ReadAction(isP1Turn);
+        if (action == DuelAction.None) return;
 
         Player actor = isP1Turn ? p1 : p2;
         int actorMana = isP1Turn ? p1Mana : p2Mana;
+        string actorName = isP1Turn ? "Eos" : "Night Eos";
 
-        if (pad.buttonSouth.wasPressedThisFrame)
+        switch (action)
         {
-            StartCoroutine(AttackRoutine());
-        }
-        else if (pad.buttonWest.wasPressedThisFrame && actorMana >= HealManaCost && actor.currentHealth < actor.maxHealth)
-        {
-            StartCoroutine(HealRoutine());
-        }
-        else if (pad.buttonEast.wasPressedThisFrame)
-        {
-            StartCoroutine(DefendRoutine());
+            case DuelAction.Attack:
+                StartCoroutine(AttackRoutine());
+                break;
+
+            case DuelAction.Heal:
+                // Tell the player why nothing happened instead of swallowing the press.
+                if (actorMana < HealManaCost)
+                    ui?.AppendLog($"{actorName} lacks Mana to heal ({actorMana}/{HealManaCost}).");
+                else if (actor.currentHealth >= actor.maxHealth)
+                    ui?.AppendLog($"{actorName} is already at full Health.");
+                else
+                    StartCoroutine(HealRoutine());
+                break;
+
+            case DuelAction.Defend:
+                StartCoroutine(DefendRoutine());
+                break;
         }
     }
 
@@ -140,6 +209,7 @@ public class LocalDuelSystem : MonoBehaviour
             actor.defensePower = p2BaseDefense + DefendBonus;
         }
         actor.PlayDefend();
+        audio?.PlayDefendSound();
         string name = isP1Turn ? "Eos" : "Night Eos";
         ui?.AppendLog($"{name} braces for impact. Defense rises by <color=#69c8ff>{DefendBonus}</color>.");
         ui?.RefreshDuel(p1, p2, p1Mana, p2Mana, MaxManaValue);
@@ -223,5 +293,6 @@ public class LocalDuelSystem : MonoBehaviour
         ui?.RefreshDuel(p1, p2, p1Mana, p2Mana, MaxManaValue);
         AnnounceTurn();
         ui?.AppendLog("A new duel begins. Eos moves first.");
+        LogControlScheme();
     }
 }

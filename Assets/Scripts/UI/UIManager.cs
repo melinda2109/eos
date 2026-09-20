@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
@@ -20,6 +21,10 @@ public class UIManager : MonoBehaviour
     public TextMeshProUGUI eosManaText;
     public Slider nightEosManaBar;
     public TextMeshProUGUI nightEosManaText;
+    [Tooltip("Optional: assign ui_healthbar_frame_night_eos.png here for a themed Mana bar frame instead of a flat rectangle.")]
+    public Sprite manaBarFrameSprite;
+    [Tooltip("Optional: assign ui_healthbar_fill_night_eos.png here for a themed Mana bar fill instead of a flat rectangle.")]
+    public Sprite manaBarFillSprite;
 
     [Header("Action Buttons")]
     public Button[] eosActionButtons;
@@ -46,6 +51,7 @@ public class UIManager : MonoBehaviour
     private readonly List<TextMeshProUGUI> upgradeDescTexts = new List<TextMeshProUGUI>();
 
     private GameObject modePanel;
+    private AudioManager audioManager;
     private Coroutine nightManaAnimation;
 
     private void Start()
@@ -76,60 +82,23 @@ public class UIManager : MonoBehaviour
 
     private void EnsureActionButtons()
     {
-        if (eosActionButtons != null && eosActionButtons.Length >= 3 && eosActionButtons[0] != null)
+        if (actionButtons.Count >= 3 && actionButtons[0] != null)
         {
-            actionButtons.Clear();
-            actionButtons.AddRange(eosActionButtons);
             HideLegacyNightEosButtons();
-            CreateManaBarIfNeeded();
+            FindManaBar();
             return;
         }
         actionButtons.Clear();
-        Button template = null;
-        if (eosActionButtons != null && eosActionButtons.Length > 0)
-            template = eosActionButtons[0];
-        if (template == null)
+        string[] names = { "EosAttackButton", "EosHealButton", "EosDefendButton" };
+        foreach (string objectName in names)
         {
-            GameObject attackObject = GameObject.Find("EosAttackButton");
-            if (attackObject != null) template = attackObject.GetComponent<Button>();
-        }
-        if (template == null)
-            template = FindFirstObjectByType<Button>();
-        if (template == null) return;
-
-        actionButtons.Add(template);
-        while (actionButtons.Count < 3)
-        {
-            GameObject clone = Instantiate(template.gameObject, template.transform.parent);
-            clone.name = actionButtons.Count == 1 ? "EosHealButton" : "EosDefendButton";
-            actionButtons.Add(clone.GetComponent<Button>());
-        }
-
-        string[] labels = { "ATTACK", "HEAL", "DEFEND" };
-        float[] x = { -450f, -275f, -100f };
-        for (int i = 0; i < actionButtons.Count; i++)
-        {
-            Button button = actionButtons[i];
-            button.transition = Selectable.Transition.SpriteSwap;
-            button.spriteState = template.spriteState;
-            RectTransform rect = button.transform as RectTransform;
-            if (rect != null)
-            {
-                Vector2 position = rect.anchoredPosition;
-                rect.anchoredPosition = new Vector2(x[i], position.y);
-                rect.sizeDelta = new Vector2(150f, Mathf.Max(42f, rect.sizeDelta.y));
-            }
-            TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
-            if (label != null)
-            {
-                label.text = labels[i];
-                label.fontSize = 18f;
-                label.fontStyle = FontStyles.Bold;
-            }
+            GameObject obj = GameObject.Find(objectName);
+            Button button = obj != null ? obj.GetComponent<Button>() : null;
+            if (button != null) actionButtons.Add(button);
         }
         eosActionButtons = actionButtons.ToArray();
         HideLegacyNightEosButtons();
-        CreateManaBarIfNeeded();
+        FindManaBar();
     }
 
     private void HideLegacyNightEosButtons()
@@ -145,49 +114,18 @@ public class UIManager : MonoBehaviour
         if (legacy != null) legacy.SetActive(false);
     }
 
-    private void CreateManaBarIfNeeded()
+    private void FindManaBar()
     {
-        if (eosManaBar != null) return;
-        Canvas canvas = FindFirstObjectByType<Canvas>();
-        if (canvas == null) return;
-        GameObject root = new GameObject("EosManaBar", typeof(RectTransform), typeof(Slider));
-        root.transform.SetParent(canvas.transform, false);
-        RectTransform rootRect = root.GetComponent<RectTransform>();
-        rootRect.anchorMin = new Vector2(0.5f, 0.5f);
-        rootRect.anchorMax = new Vector2(0.5f, 0.5f);
-        rootRect.anchoredPosition = new Vector2(-399f, -75f);
-        rootRect.sizeDelta = new Vector2(160f, 14f);
-        Slider slider = root.GetComponent<Slider>();
-        slider.minValue = 0f;
-        slider.maxValue = 100f;
-        slider.value = 60f;
-        slider.interactable = false;
-
-        GameObject background = new GameObject("Background", typeof(RectTransform), typeof(Image));
-        background.transform.SetParent(root.transform, false);
-        RectTransform bgRect = background.GetComponent<RectTransform>();
-        bgRect.anchorMin = Vector2.zero; bgRect.anchorMax = Vector2.one; bgRect.offsetMin = Vector2.zero; bgRect.offsetMax = Vector2.zero;
-        background.GetComponent<Image>().color = new Color(0.04f, 0.08f, 0.18f, 0.95f);
-
-        GameObject fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
-        fill.transform.SetParent(root.transform, false);
-        RectTransform fillRect = fill.GetComponent<RectTransform>();
-        fillRect.anchorMin = Vector2.zero; fillRect.anchorMax = Vector2.one; fillRect.offsetMin = new Vector2(3f, 3f); fillRect.offsetMax = new Vector2(-3f, -3f);
-        Image fillImage = fill.GetComponent<Image>();
-        fillImage.color = new Color(0.18f, 0.62f, 1f, 1f);
-        slider.fillRect = fillRect;
-        slider.targetGraphic = fillImage;
-        eosManaBar = slider;
-
-        GameObject textObject = new GameObject("ManaText", typeof(RectTransform), typeof(TextMeshProUGUI));
-        textObject.transform.SetParent(canvas.transform, false);
-        RectTransform textRect = textObject.GetComponent<RectTransform>();
-        textRect.anchorMin = new Vector2(0.5f, 0.5f); textRect.anchorMax = new Vector2(0.5f, 0.5f); textRect.anchoredPosition = new Vector2(-399f, -58f); textRect.sizeDelta = new Vector2(160f, 20f);
-        eosManaText = textObject.GetComponent<TextMeshProUGUI>();
-        eosManaText.alignment = TextAlignmentOptions.Center;
-        eosManaText.fontSize = 12f;
-        eosManaText.fontStyle = FontStyles.Bold;
-        eosManaText.color = new Color(0.55f, 0.82f, 1f);
+        if (eosManaBar == null)
+        {
+            GameObject barObj = GameObject.Find("EosManaBar");
+            if (barObj != null) eosManaBar = barObj.GetComponent<Slider>();
+        }
+        if (eosManaText == null)
+        {
+            GameObject textObj = GameObject.Find("ManaText");
+            if (textObj != null) eosManaText = textObj.GetComponent<TextMeshProUGUI>();
+        }
     }
 
     private void CreateNightManaBarIfNeeded()
@@ -212,14 +150,31 @@ public class UIManager : MonoBehaviour
         background.transform.SetParent(root.transform, false);
         RectTransform bgRect = background.GetComponent<RectTransform>();
         bgRect.anchorMin = Vector2.zero; bgRect.anchorMax = Vector2.one; bgRect.offsetMin = Vector2.zero; bgRect.offsetMax = Vector2.zero;
-        background.GetComponent<Image>().color = new Color(0.2f, 0.03f, 0.1f, 0.95f);
+        Image backgroundImage = background.GetComponent<Image>();
+        if (manaBarFrameSprite != null)
+        {
+            backgroundImage.sprite = manaBarFrameSprite;
+            backgroundImage.color = Color.white;
+        }
+        else
+        {
+            backgroundImage.color = new Color(0.2f, 0.03f, 0.1f, 0.95f);
+        }
 
         GameObject fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
         fill.transform.SetParent(root.transform, false);
         RectTransform fillRect = fill.GetComponent<RectTransform>();
         fillRect.anchorMin = Vector2.zero; fillRect.anchorMax = Vector2.one; fillRect.offsetMin = new Vector2(3f, 3f); fillRect.offsetMax = new Vector2(-3f, -3f);
         Image fillImage = fill.GetComponent<Image>();
-        fillImage.color = new Color(0.86f, 0.32f, 0.62f, 1f);
+        if (manaBarFillSprite != null)
+        {
+            fillImage.sprite = manaBarFillSprite;
+            fillImage.color = Color.white;
+        }
+        else
+        {
+            fillImage.color = new Color(0.86f, 0.32f, 0.62f, 1f);
+        }
         slider.fillRect = fillRect;
         slider.targetGraphic = fillImage;
         nightEosManaBar = slider;
@@ -319,9 +274,11 @@ public class UIManager : MonoBehaviour
                 label.fontStyle = FontStyles.Bold;
                 label.enableWordWrapping = true;
             }
+            AttachNavigationSounds(button);
             Action callback = callbacks[i];
             button.onClick.AddListener(() =>
             {
+                Audio?.PlayUISelectSound();
                 modePanel.SetActive(false);
                 callback?.Invoke();
             });
@@ -445,6 +402,7 @@ public class UIManager : MonoBehaviour
                 upgradeButtons[i].onClick.RemoveAllListeners();
                 upgradeButtons[i].onClick.AddListener(() =>
                 {
+                    Audio?.PlayUISelectSound();
                     upgradePanel.SetActive(false);
                     onChosen?.Invoke(option);
                 });
@@ -528,11 +486,44 @@ public class UIManager : MonoBehaviour
             descLabel.color = new Color(0.2f, 0.12f, 0.08f);
             descLabel.enableWordWrapping = true;
 
+            AttachNavigationSounds(button);
             upgradeButtons.Add(button);
             upgradeTitleTexts.Add(titleLabel);
             upgradeDescTexts.Add(descLabel);
         }
         upgradePanel.SetActive(false);
+    }
+
+    private AudioManager Audio
+    {
+        get
+        {
+            if (audioManager == null)
+            {
+                audioManager = GameManager.Instance != null ? GameManager.Instance.audioManager : null;
+                if (audioManager == null) audioManager = FindAnyObjectByType<AudioManager>();
+            }
+            return audioManager;
+        }
+    }
+
+    /// <summary>
+    /// Adds a blip when the highlight moves onto a card and a confirm chime when it is
+    /// taken. Hooks both PointerEnter and Select so mouse and gamepad navigation agree.
+    /// </summary>
+    private void AttachNavigationSounds(Button button)
+    {
+        EventTrigger trigger = button.GetComponent<EventTrigger>();
+        if (trigger == null) trigger = button.gameObject.AddComponent<EventTrigger>();
+        trigger.triggers.Clear();
+
+        EventTrigger.Entry hover = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+        hover.callback.AddListener(_ => Audio?.PlayUIMoveSound());
+        trigger.triggers.Add(hover);
+
+        EventTrigger.Entry select = new EventTrigger.Entry { eventID = EventTriggerType.Select };
+        select.callback.AddListener(_ => Audio?.PlayUIMoveSound());
+        trigger.triggers.Add(select);
     }
 
     private Slider FindSlider(string objectName)
